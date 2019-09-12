@@ -1,12 +1,12 @@
 #!/bin/bash
 
-input=~/favs.txt
+input=~/favs/favs.txt
 
 ACTION="normal"
 
 usage()
 {
-  echo "Usage: ~/favs.sh [-l] [ -s newCMD ] [ -r CMD_index ]"
+  echo "Usage: ~/favs/favs.sh [-l] [ -s newCMD ] [ -r CMD_index ]"
   echo "-s              Save newCMD into favs.txt" 
   echo "-r              Run saved command using index number"
   echo "-l              List saved commands"
