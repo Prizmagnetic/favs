@@ -6,15 +6,16 @@ ACTION="normal"
 
 usage()
 {
-  echo "Usage: ~/favs/favs.sh [-l] [ -s newCMD ] [ -r CMD_index ]"
+  echo "Usage: ~/favs/favs.sh [-le] [ -s newCMD ] [ -r CMD_index ]"
   echo "-s              Save newCMD into favs.txt" 
   echo "-r              Run saved command using index number"
   echo "-l              List saved commands"
+  echo "-e              Edit command list"
   echo "-h              display this help text and exit"
   exit 2
 }
 
-while getopts ':s:r:l?h' c
+while getopts ':s:r:l:e?h' c
 do
   case $c in
     s) ACTION=save
@@ -25,6 +26,7 @@ do
     r) ACTION=run 
        choice=$OPTARG ;;
     l) ACTION=list ;;
+    e) nano $input ;;
     h|?) usage  ;;
     :) ACTION=empty ;;
   esac
