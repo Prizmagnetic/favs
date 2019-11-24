@@ -4,4 +4,4 @@ sudo shutdown
 
 
 
-nano ~/.bash_aliases
+echo "alias f='~/favs/favs.sh'" >> ~/.bash_aliases #save alias
