@@ -26,7 +26,8 @@ do
     r) ACTION=run 
        choice=$OPTARG ;;
     l) ACTION=list ;;
-    e) nano $input ;;
+    e) nano $input 
+       exit  ;;
     h|?) usage  ;;
     :) ACTION=empty ;;
   esac
