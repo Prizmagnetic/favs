@@ -6,11 +6,12 @@ ACTION="normal"
 
 usage()
 {
-  echo "Usage: ~/favs/favs.sh [-le] [ -s newCMD ] [ -r CMD_index ]"
+  echo "Usage: ~/favs/favs.sh [-lei] [ -s newCMD ] [ -r CMD_index ]"
   echo "-s              Save newCMD into favs.txt" 
   echo "-r              Run saved command using index number"
   echo "-l              List saved commands"
   echo "-e              Edit command list"
+  echo "-i              'Install' via ~/.bash_aliases"
   echo "-h              display this help text and exit"
   exit 2
 }
@@ -27,6 +28,9 @@ do
        choice=$OPTARG ;;
     l) ACTION=list ;;
     e) nano $input 
+       exit  ;;
+    i) echo "alias f='~/favs/favs.sh'" >> ~/.bash_aliases
+       echo "Relogin to finish"
        exit  ;;
     h|?) usage  ;;
     :) ACTION=empty ;;
