@@ -16,7 +16,7 @@ usage()
   exit 2
 }
 
-while getopts ':s:r:l:e?h' c
+while getopts ':s:r:l:e:i?h' c
 do
   case $c in
     s) ACTION=save
