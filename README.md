@@ -2,7 +2,7 @@
 bash script for storing and using your favorite bash commands
 
 
-#Install
+# Install
 git https://github.com/Prizmagnetic/favs.git
 
 
