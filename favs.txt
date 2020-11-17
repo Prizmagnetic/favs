@@ -1,6 +1,6 @@
 sudo apt update && sudo apt upgrade -y
 sudo nano /etc/wpa_supplicant/wpa_supplicant.conf
-sudo shutdown -h
+sudo shutdown -h now
 
 
 
