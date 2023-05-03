@@ -1,17 +1,20 @@
 #!/bin/bash
 
+#stored commands location
 input=~/favs/favs.txt
 
+#Mode handling for different args
 ACTION="normal"
 
 usage()
 {
-  echo "Usage: ~/favs/favs.sh [-lei] [ -s newCMD ] [ -r CMD_index ]"
-  echo "-s              Save newCMD into favs.txt" 
-  echo "-r              Run saved command using index number"
-  echo "-l              List saved commands"
+  echo "Usage: ~/favs/favs.sh [-eilu] [ -s newCMD ] [ -r CMD_index ]"
   echo "-e              Edit command list"
   echo "-i              'Install' via ~/.bash_aliases"
+  echo "-l              List saved commands"
+  echo "-r              Run saved command using index number"
+  echo "-s              Save newCMD into favs.txt"
+  echo "-u              Run apt-get update && upgrage"
   echo "-h              display this help text and exit"
   exit 2
 }
@@ -23,6 +26,8 @@ do
        echo $OPTARG >> $input
        echo $OPTARG 
        echo Command saved! 
+       exit ;;
+    u) sudo apt update && sudo apt upgrade -y
        exit ;;
     r) ACTION=run 
        choice=$OPTARG ;;
@@ -55,6 +60,7 @@ do
   fi
 done < "$input"
 
+#run prompt
 if [[ $ACTION == normal ]]; then
   echo -n "run: "
   read choice
@@ -64,7 +70,6 @@ if [[ $ACTION == run || $ACTION == normal ]]; then
   #checks input and runs selection
   if [[ $choice -ge 0  && ${#cmds[@]} -gt $choice ]]; then
     echo running: ${cmds[$choice]}
-    #eval ${cmds[$choice]}
     eval ${cmds[$choice]}
   else
     echo invaild input! int out of range!
