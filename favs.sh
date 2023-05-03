@@ -19,9 +19,17 @@ usage()
   exit 2
 }
 
-while getopts ':s:r:l:e:i?h' c
+while getopts ':eilr:s:u?h' c
 do
   case $c in
+    e) nano $input 
+       exit  ;;
+    i) echo "alias f='~/favs/favs.sh'" >> ~/.bash_aliases
+       echo "Relogin to finish"
+       exit  ;;
+    l) ACTION=list ;;
+    r) ACTION=run 
+       choice=$OPTARG ;;
     s) ACTION=save
        echo $OPTARG >> $input
        echo $OPTARG 
@@ -29,14 +37,6 @@ do
        exit ;;
     u) sudo apt update && sudo apt upgrade -y
        exit ;;
-    r) ACTION=run 
-       choice=$OPTARG ;;
-    l) ACTION=list ;;
-    e) nano $input 
-       exit  ;;
-    i) echo "alias f='~/favs/favs.sh'" >> ~/.bash_aliases
-       echo "Relogin to finish"
-       exit  ;;
     h|?) usage  ;;
     :) ACTION=empty ;;
   esac
