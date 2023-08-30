@@ -1,7 +1,5 @@
-sudo apt update && sudo apt upgrade -y
+echo "test" #Comments show up
+#Even when they have their own line
 sudo nano /etc/wpa_supplicant/wpa_supplicant.conf
-sudo shutdown -h now
 
-
-
-echo "alias f='~/favs/favs.sh'" >> ~/.bash_aliases #save alias
+echo "spaces are displayed too"
