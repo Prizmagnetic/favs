@@ -1,0 +1,5 @@
+echo "cmd 0"
+sudo nano /etc/wpa_supplicant/wpa_supplicant.conf
+echo "cmd 2" #inline comment
+
+#line with only comment
