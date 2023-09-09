@@ -1,21 +1,30 @@
 #!/bin/bash
 
-#bugs:
-#favs.txt doesnt read the last line. needs a blank at the end
-#   also should trim trailling new lines
+#bugs: 
 
 #nice things to have TODO:
-#separate default cmds list, showing spaces and comments working etc.
+#save cmd pulls from history and asks which one you want
+# (history 10 | cut -c 8- > hist.txt) someting like this will get pipped into the while loop in readFavs
+#save cmd in prompt
+
+#favs.txt - maybe should trim trailling new lines
 #make file locations not hard coded
 #have update/power/etc work on other distros
 #allow edit to work with other text editors
 
 #stored commands location
-input=~/favs/favs.txt
+favsFile=~/favs/favs.txt
+
+if [ ! -e "$favsFile" ]; then
+  input=~/favs/default.txt
+else
+  input=$favsFile
+fi
 
 edit() #Edit command list
 {
-  nano $input 
+  echo "editing: " $favsFile
+  nano $favsFile 
   exit
 }
 
@@ -36,6 +45,26 @@ power() #System power shortcuts
   exit
 }
 
+save() #Save new Command
+{
+  if [ ! -e "$favsFile" ]; then #if favs hasnt been created yet
+    echo 'Creating "$favsFile"'
+    echo "$1" >> "$favsFile"
+  else
+    if [[ $(tail -c 1 "$favsFile" | wc -l) -eq 0 ]]; then
+      #echo newline not found
+      echo >> "$favsFile"
+      echo "$1" >> "$favsFile"
+    else
+      #echo newline found
+      echo "$1" >> "$favsFile"
+    fi
+  fi
+
+  echo $1
+  echo "Command saved!"
+}
+
 updater() #Update packages on system
 {
   echo "Attempting package updates..."
@@ -48,21 +77,24 @@ readFavs() #Read cmd file, optionaly print output
   # cmd list header
   if [[ $1 == print ]]; then
     echo "(e)dit (p)ower (u)pdate (h)elp"
+    print=true
+  else
+    print=false
   fi
   #pull list of commands from input file
   i=0
-  while IFS= read -r line
+  while IFS= read -r line || [[ -n $line ]]
   do
     if [[ -z "$line" ]]; then #If the line is blank
-      if [[ $1 == print ]]; then
+      if [[ $print == true ]]; then
         echo ''
       fi
     elif [[ ${line:0:1} == "#" ]]; then #if line is a comment
-      if [[ $1 == print ]]; then
+      if [[ $print == true ]]; then
         echo $line
       fi
     else #IF the line is assumed to be a command
-      if [[ $1 == print ]]; then
+      if [[ $print == true ]]; then
         echo $i")" "$line"
       fi
       cmds[i]="$line"
@@ -125,7 +157,7 @@ while getopts ':egilpr:s:u?h' c
 do
   case $c in
     e) edit  ;;
-    g) echo "cmd to update favs from git goes here"
+    g) echo "Updating from Git"
        cd ~/favs/
        git pull
        exit  ;;
@@ -139,9 +171,7 @@ do
        readFavs
        runCMD
        exit  ;;
-    s) echo $OPTARG >> $input
-       echo $OPTARG 
-       echo Command saved! 
+    s) save "$OPTARG" 
        exit ;;
     u) updater ;;
     h|?) usage ;;
