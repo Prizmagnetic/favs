@@ -1,5 +1,0 @@
-echo "test" #Comments show up
-#Even when they have their own line
-sudo nano /etc/wpa_supplicant/wpa_supplicant.conf
-
-echo "spaces are displayed too"
