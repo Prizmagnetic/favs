@@ -545,7 +545,7 @@ runPrompt() #Prompt user for a group to open
         topLevelValue="${topLevelValues[$choiceInput]}"
         if [[ $topLevelType == group ]]; then
           runGroup "$topLevelValue"
-          readFavs "print"
+          return $?
         else
           runCommandAt "$topLevelValue"
           return $?
@@ -625,6 +625,13 @@ main()
   runPrompt
 }
 
+favs()
+{
+  main "$@"
+}
+
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   main "$@"
+else
+  main
 fi
