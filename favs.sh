@@ -57,15 +57,15 @@ edit() #Edit command list
 {
   echo "editing: " $favsFile
   nano $favsFile 
-  exit
+  return $?
 }
 
 gitUpdate() #update favs from git
 {
   echo "Updating from Git"
-  cd "$scriptDir" || exit 1
+  cd "$scriptDir" || return 1
   git pull
-  exit $?
+  return $?
 }
 
 power() #System power shortcuts
@@ -82,7 +82,7 @@ power() #System power shortcuts
   else 
     echo "Invalid input, canceling"
   fi
-  exit
+  return 0
 }
 
 save() #Save new Command
@@ -189,7 +189,7 @@ updater() #Update packages on system
 {
   echo "Attempting package updates..."
   sudo apt update && sudo apt upgrade -y
-  exit
+  return $?
 }
 
 testColors() #Print the configured colors
@@ -360,10 +360,11 @@ runGroup() #Open a groups command submenu
         ;;
       c)
         echo -e "${GREEN}Goodbye${NC}"
-        exit
+        return 0
         ;;
       h)
         usage
+        return $?
         ;;
     esac
 
@@ -408,15 +409,15 @@ runGroup() #Open a groups command submenu
       readEditedCommand "${cmds[$globalIndex]}" "$promptText"
 
       if [[ $action == save ]]; then
-        saveCommandAt "$globalIndex" "$editedCommand" || exit 1
-        exit 0
+        saveCommandAt "$globalIndex" "$editedCommand" || return 1
+        return 0
       else
         cmds[$globalIndex]="$editedCommand"
       fi
     fi
 
     runCommandAt "$globalIndex"
-    exit 0
+    return $?
   done
 }
 
@@ -458,32 +459,37 @@ runPrompt() #Prompt user for a group to open
     case "${choiceInput,,}" in
       c)
         echo -e "${GREEN}Goodbye${NC}"
-        exit
+        return 0
         ;;
       e)
         edit
+        return $?
         ;;
       g)
         gitUpdate
+        return $?
         ;;
       p)
         power
+        return $?
         ;;
       s)
         echo -en "${YELLOW}Enter command:${NC} "
         read cInput
         save "$cInput"
-        exit
+        return $?
         ;;
       t)
         testColors
-        exit
+        return $?
         ;;
       u)
         updater
+        return $?
         ;;
       h)
         usage
+        return $?
         ;;
     esac
 
@@ -520,12 +526,12 @@ runPrompt() #Prompt user for a group to open
         readEditedCommand "${cmds[$commandIndex]}" "$promptText"
 
         if [[ $topAction == save ]]; then
-          saveCommandAt "$commandIndex" "$editedCommand" || exit 1
-          exit 0
+          saveCommandAt "$commandIndex" "$editedCommand" || return 1
+          return 0
         else
           cmds[$commandIndex]="$editedCommand"
           runCommandAt "$commandIndex"
-          exit 0
+          return $?
         fi
       else
         echo "error: invalid top-level number" >&2
@@ -542,7 +548,7 @@ runPrompt() #Prompt user for a group to open
           readFavs "print"
         else
           runCommandAt "$topLevelValue"
-          exit 0
+          return $?
         fi
       else
         echo "error: invalid top-level number" >&2
@@ -560,18 +566,18 @@ runCMD() #Run selected command
 
   #if choice is a number
   if ! [[ $choice =~ $re ]]; then 
-    echo "error: Not a number" >&2; exit 1
+    echo "error: Not a number" >&2; return 1
   fi
   #if choice is a number in the range of cmds
   if [[ $choice -ge 0  && ${#cmds[@]} -gt $choice ]]; then
     echo -e "${GREEN}running:${NC} ${cmds[$choice]}"
     eval ${cmds[$choice]}
   else
-    echo "error: invaild input! int out of range!"  >&2; exit 1
+    echo "error: invaild input! int out of range!"  >&2; return 1
   fi
 }
 
-usage() #Display this help text and exit
+usage() #Display this help text
 {
   echo "Usage: ~/favs/favs.sh [-egilpu] [ -s newCMD ] [ -r CMD_index ]"
   echo "-e              Edit command list"
@@ -583,33 +589,42 @@ usage() #Display this help text and exit
   echo "-s              Save newCMD into favs.txt"
   echo "-u              Run apt-get update && upgrage"
   echo "-h              Display this help text and exit"
-  exit 2
+  return 2
 }
 
-#options when running command (ie. f -l)
-while getopts ':egilpr:s:u?h' c
-do
-  case $c in
-    e) edit  ;;
-    g) gitUpdate ;;
-    i) echo "alias f='~/favs/favs.sh'" >> ~/.bash_aliases
-       echo "Relogin to finish"
-       exit  ;;
-    l) readFavs "print"  
-       exit  ;;
-    p) power ;;
-    r) choice=$OPTARG 
-       readFavs
-       runCMD
-       exit  ;;
-    s) save "$OPTARG" 
-       exit  ;;
-    u) updater ;;
-    h|?) usage ;;
-  esac
-done
+main()
+{
+  local c
 
-#when no options or arguments are given
-readFavs "print"
-runPrompt
-runCMD
+  OPTIND=1
+  # Options when running command (ie. f -l).
+  while getopts ':egilpr:s:u?h' c
+  do
+    case $c in
+      e) edit; return $? ;;
+      g) gitUpdate; return $? ;;
+      i) echo "alias f='~/favs/favs.sh'" >> ~/.bash_aliases
+         echo "Relogin to finish"
+         return 0 ;;
+      l) readFavs "print"
+         return $? ;;
+      p) power; return $? ;;
+      r) choice=$OPTARG
+         readFavs
+         runCMD
+         return $? ;;
+      s) save "$OPTARG"
+         return $? ;;
+      u) updater; return $? ;;
+      h|?) usage; return $? ;;
+    esac
+  done
+
+  # When no options or arguments are given.
+  readFavs "print"
+  runPrompt
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi
