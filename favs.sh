@@ -8,14 +8,19 @@
 #favs.conf - configuration file for colors and other settings
 
 #bugs: 
-
+#f -r INDEX  is kinda useless now with groups changing the index numbers
 
 #nice things to have TODO:
 #allow edit to work with other text editors
 #favs.txt - maybe should trim trailling new lines
 #have update/power/etc work on other distros
 
-# Define default color codes
+# Favs is a small interactive command menu. It loads a list of commands from
+# favs.txt (or a default example list when no personal file exists), lets the
+# user run, group, edit, or save commands, and exposes a few helper actions like
+# reboot/shutdown and package updates.
+
+# Define default color codes used when printing the menu and status output.
 RED='\033[0;31m'
 GREEN='\033[0;32;1m'
 YELLOW='\033[1;33m'
@@ -28,6 +33,7 @@ scriptDir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 favsFile="$scriptDir/favs.txt"
 configFile="$scriptDir/favs.conf"
 defaultFile="$scriptDir/default.txt"
+instructionEndMarker='# === END FAVS INSTRUCTIONS ==='
 
 # Override the default colors when a config file exists.
 if [ -e "$configFile" ]; then
@@ -46,29 +52,54 @@ case "${USE_COLORS,,}" in
 esac
 
 #load favs.txt if it exists, otherwise load default.txt
-if [ ! -e "$favsFile" ]; then
-  input="$defaultFile"
-else
-  input=$favsFile
-fi
+refreshInput()
+{
+  if [ -e "$favsFile" ]; then
+    input="$favsFile"
+  else
+    input="$defaultFile"
+  fi
+}
+
+refreshInput
+
+initializeFavsFile()
+{
+  if [ -e "$favsFile" ]; then
+    return 0
+  fi
+
+  cat > "$favsFile" <<EOF
+# favs.txt is your personal command list.
+# Lines beginning with # are comments and are not executable.
+# Add commands below the instruction marker. Review commands before running them.
+$instructionEndMarker
+
+EOF
+}
 
 
+# Open the command list in the user's configured editor so commands can be
+# added, removed, or revised directly in the saved file.
 edit() #Edit command list
 {
-  echo "editing: " $favsFile
-  nano $favsFile 
+  initializeFavsFile || return 1
+  refreshInput
+  echo "editing: $favsFile"
+  "${FAVS_EDITOR:-${EDITOR:-nano}}" "$favsFile"
   return $?
 }
 
+# Pull the repository copy of this script and its example files to sync local
+# changes with the project root.
 gitUpdate() #update favs from git
 {
   echo "Updating from Git"
-  cd "$scriptDir" || return 1
-  git pull
-  return $?
+  git -C "$scriptDir" pull
 }
 
-power() #System power shortcuts
+#System power shortcuts
+power()
 {
   echo "(r)estart (s)hutdown (c)ancel"
   echo -n "Input: "
@@ -85,26 +116,27 @@ power() #System power shortcuts
   return 0
 }
 
+# Save a single new command into favs.txt without executing it first. This is
+# used by the interactive prompt and the -s CLI option.
 save() #Save new Command
 {
   if [ ! -e "$favsFile" ]; then #if favs hasnt been created yet
-    echo 'Creating "$favsFile"'
-    echo "$1" >> "$favsFile"
-  else
-    if [[ $(tail -c 1 "$favsFile" | wc -l) -eq 0 ]]; then
-      #echo newline not found
-      echo >> "$favsFile"
-      echo "$1" >> "$favsFile"
-    else
-      #echo newline found
-      echo "$1" >> "$favsFile"
-    fi
+    echo "Creating $favsFile"
+    initializeFavsFile || return 1
   fi
 
-  echo $1
+  if [[ -s "$favsFile" && $(tail -c 1 "$favsFile" | wc -l) -eq 0 ]]; then
+    echo >> "$favsFile"
+  fi
+  printf '%s\n' "$1" >> "$favsFile"
+  refreshInput
+
+  echo "$1"
   echo -e "${GREEN}Command saved!${NC}"
 }
 
+# Replace a command already stored in the file by its global index. This is used
+# when editing an existing command from the menu and then saving it back.
 saveCommandAt() #Replace one saved command without running it
 {
   local targetIndex="$1"
@@ -115,12 +147,19 @@ saveCommandAt() #Replace one saved command without running it
   local line
   local savedCommand
 
-  # Start from the default command list if favs.txt does not exist yet.
+  # Materialize the examples only when the user explicitly saves an edit.
   if [ ! -e "$favsFile" ]; then
-    cp "$input" "$favsFile" || {
+    initializeFavsFile || {
       echo "error: could not create $favsFile" >&2
       return 1
     }
+    if [[ "$input" != "$favsFile" ]]; then
+      cat "$input" >> "$favsFile" || {
+        echo "error: could not copy example commands to $favsFile" >&2
+        return 1
+      }
+    fi
+    refreshInput
   fi
 
   tmpFile=$(mktemp "${favsFile}.tmp.XXXXXX") || {
@@ -165,6 +204,7 @@ saveCommandAt() #Replace one saved command without running it
   printf '%s\n' "$savedCommand"
 }
 
+# Return the raw command text for a saved item by its visible index in the list.
 readCommandAt() #Read one saved command by its displayed index
 {
   local targetIndex="$1"
@@ -202,13 +242,17 @@ testColors() #Print the configured colors
   echo "If a color is hard to see, change it in favs.conf."
 }
 
+# Parse the command file into a few arrays so the main menu can display grouped
+# entries, notes, and ungrouped commands in a consistent order.
 loadCommands() #Load commands and assign them to groups
 {
   unset cmds cmdGroups cmdLocals groupNames groupCommandCount
-  unset topLevelTypes topLevelValues
+  unset topLevelTypes topLevelValues topLevelDisplayTypes topLevelDisplayValues
   local currentGroup=-1
   local commandIndex=0
   local topLevelIndex=0
+  local topLevelDisplayIndex=0
+  local instructionsEnded=false
   local line
   local groupName
 
@@ -217,7 +261,9 @@ loadCommands() #Load commands and assign them to groups
 
   while IFS= read -r line || [[ -n "$line" ]]
   do
-    if [[ ${line:0:2} == "##" ]]; then
+    if [[ "$line" == "$instructionEndMarker" ]]; then
+      instructionsEnded=true
+    elif [[ ${line:0:2} == "##" ]]; then
       groupName="${line:2}"
       groupName="${groupName# }"
       if [[ -z "$groupName" ]]; then
@@ -228,10 +274,18 @@ loadCommands() #Load commands and assign them to groups
         groupCommandCount[$groupCount]=0
         topLevelTypes[$topLevelIndex]=group
         topLevelValues[$topLevelIndex]=$groupCount
+        topLevelDisplayTypes[$topLevelDisplayIndex]=group
+        topLevelDisplayValues[$topLevelDisplayIndex]=$topLevelIndex
         currentGroup=$groupCount
         ((groupCount++))
         ((topLevelIndex++))
+        ((topLevelDisplayIndex++))
       fi
+    elif [[ $instructionsEnded == true && $currentGroup -eq -1 &&
+            ${line:0:1} == "#" ]]; then
+      topLevelDisplayTypes[$topLevelDisplayIndex]=note
+      topLevelDisplayValues[$topLevelDisplayIndex]="$line"
+      ((topLevelDisplayIndex++))
     elif [[ -n "$line" && ${line:0:1} != "#" ]]; then
       cmds[$commandIndex]="$line"
       cmdGroups[$commandIndex]="$currentGroup"
@@ -242,7 +296,10 @@ loadCommands() #Load commands and assign them to groups
         # Commands outside a group are direct top-level entries.
         topLevelTypes[$topLevelIndex]=command
         topLevelValues[$topLevelIndex]=$commandIndex
+        topLevelDisplayTypes[$topLevelDisplayIndex]=command
+        topLevelDisplayValues[$topLevelDisplayIndex]=$topLevelIndex
         ((topLevelIndex++))
+        ((topLevelDisplayIndex++))
       fi
       ((commandIndex++))
     fi
@@ -251,6 +308,8 @@ loadCommands() #Load commands and assign them to groups
   topLevelCount=$topLevelIndex
 }
 
+# Print the commands inside a specific group, including inline comments and
+# numbering local to that group.
 printGroupCommands() #Print commands within one group
 {
   local targetGroup="$1"
@@ -292,7 +351,8 @@ printGroupCommands() #Print commands within one group
   done < "$input"
 }
 
-findGlobalCommand() #Find a command by group and submenu index
+#Find a command by group and submenu index
+findGlobalCommand() 
 {
   local targetGroup="$1"
   local targetLocal="$2"
@@ -360,11 +420,10 @@ runGroup() #Open a groups command submenu
         ;;
       c)
         echo -e "${GREEN}Goodbye${NC}"
-        return 0
+        return 2
         ;;
       h)
         usage
-        return $?
         ;;
     esac
 
@@ -410,14 +469,14 @@ runGroup() #Open a groups command submenu
 
       if [[ $action == save ]]; then
         saveCommandAt "$globalIndex" "$editedCommand" || return 1
-        return 0
+        return 2
       else
         cmds[$globalIndex]="$editedCommand"
       fi
     fi
 
     runCommandAt "$globalIndex"
-    return $?
+    return 2
   done
 }
 
@@ -428,13 +487,14 @@ readFavs() #Read cmd file, optionaly print output
   if [[ $1 == print ]]; then
     echo "(e)dit (p)ower (s)ave (t)est colors (u)pdate (g)itUpdate (c)ancel (h)elp"
     echo "Choose a group number to open its command submenu, or choose an ungrouped command"
-    echo "Use ## Group Name to open a group and ## to close it"
 
-    if [[ $topLevelCount -eq 0 ]]; then
-      echo "No saved commands"
-    else
-      for ((topIndex = 0; topIndex < topLevelCount; topIndex++))
-      do
+    displayIndex=0
+    for ((displayIndex = 0; displayIndex < ${#topLevelDisplayTypes[@]}; displayIndex++))
+    do
+      if [[ ${topLevelDisplayTypes[$displayIndex]} == note ]]; then
+        echo -e "${GRAY}${topLevelDisplayValues[$displayIndex]}${NC}"
+      else
+        topIndex="${topLevelDisplayValues[$displayIndex]}"
         if [[ ${topLevelTypes[$topIndex]} == group ]]; then
           groupIndex="${topLevelValues[$topIndex]}"
           echo -e "${YELLOW}${topIndex}]~[ ${groupNames[$groupIndex]} ]${NC} (${groupCommandCount[$groupIndex]} commands)"
@@ -444,7 +504,11 @@ readFavs() #Read cmd file, optionaly print output
           comment="${cmds[$commandIndex]#*$beforeComment}"
           echo -e "${GREEN}${topIndex})${NC} ${beforeComment}${GRAY}${comment}${NC}"
         fi
-      done
+      fi
+    done
+
+    if [[ $topLevelCount -eq 0 ]]; then
+      echo "No saved commands"
     fi
   fi
 }
@@ -467,11 +531,9 @@ runPrompt() #Prompt user for a group to open
         ;;
       g)
         gitUpdate
-        return $?
         ;;
       p)
         power
-        return $?
         ;;
       s)
         echo -en "${YELLOW}Enter command:${NC} "
@@ -485,11 +547,9 @@ runPrompt() #Prompt user for a group to open
         ;;
       u)
         updater
-        return $?
         ;;
       h)
         usage
-        return $?
         ;;
     esac
 
@@ -545,7 +605,11 @@ runPrompt() #Prompt user for a group to open
         topLevelValue="${topLevelValues[$choiceInput]}"
         if [[ $topLevelType == group ]]; then
           runGroup "$topLevelValue"
-          return $?
+          groupStatus=$?
+          if [[ $groupStatus -eq 2 ]]; then
+            return 0
+          fi
+          readFavs "print"
         else
           runCommandAt "$topLevelValue"
           return $?
@@ -577,12 +641,12 @@ runCMD() #Run selected command
   fi
 }
 
-usage() #Display this help text
+usage() #Display this help text and exit
 {
-  echo "Usage: ~/favs/favs.sh [-egilpu] [ -s newCMD ] [ -r CMD_index ]"
+  echo "Usage: favs.sh [-egilpu] [-s newCMD] [-r CMD_index]"
   echo "-e              Edit command list"
   echo "-g              Update Favs from Git repo"
-  echo "-i              'Install' via ~/.bash_aliases"
+  echo "-i              Install the f() function in ~/.bashrc"
   echo "-l              List saved commands"
   echo "-p              Power, reboot, shutdown"    
   echo "-r              Run saved command using index number"
@@ -592,22 +656,63 @@ usage() #Display this help text
   return 2
 }
 
+installFunction() #Install or update the interactive shell function
+{
+  local rcFile="${FAVS_RC_FILE:-$HOME/.bashrc}"
+  local startMarker='# >>> favs shell function >>>'
+  local endMarker='# <<< favs shell function <<<'
+  local tmpFile
+
+  mkdir -p "$(dirname "$rcFile")" || return 1
+  touch "$rcFile" || return 1
+  tmpFile=$(mktemp "${rcFile}.tmp.XXXXXX") || return 1
+
+  awk -v startMarker="$startMarker" -v endMarker="$endMarker" '
+    $0 == startMarker { skipping=1; found=1; next }
+    $0 == endMarker { skipping=0; next }
+    !skipping { print }
+    END { if (found) print "" }
+  ' "$rcFile" > "$tmpFile" || {
+    rm -f "$tmpFile"
+    return 1
+  }
+
+  cat >> "$tmpFile" <<EOF
+
+$startMarker
+unalias f 2>/dev/null || true
+f() {
+  source "$scriptDir/favs.sh" "\$@"
+}
+$endMarker
+EOF
+
+  mv "$tmpFile" "$rcFile" || {
+    rm -f "$tmpFile"
+    return 1
+  }
+
+  echo "Installed f() in $rcFile"
+  echo "Run: source $rcFile"
+}
+
+# Entry point: parse CLI flags and either run one-off actions like -l or -s, or
+# fall back to the interactive menu when no option is supplied.
 main()
 {
-  local c
+  local OPTIND=1
 
-  OPTIND=1
-  # Options when running command (ie. f -l).
+  #options when running command (ie. f -l)
   while getopts ':egilpr:s:u?h' c
   do
     case $c in
-      e) edit; return $? ;;
+      e) edit
+        readFavs "print"
+        return $? ;;
       g) gitUpdate; return $? ;;
-      i) echo "alias f='~/favs/favs.sh'" >> ~/.bash_aliases
-         echo "Relogin to finish"
-         return 0 ;;
+      i) installFunction; return $? ;;
       l) readFavs "print"
-         return $? ;;
+         return  ;;
       p) power; return $? ;;
       r) choice=$OPTARG
          readFavs
@@ -620,18 +725,9 @@ main()
     esac
   done
 
-  # When no options or arguments are given.
+  #when no options or arguments are given
   readFavs "print"
   runPrompt
 }
 
-favs()
-{
-  main "$@"
-}
-
-if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
-  main "$@"
-else
-  main
-fi
+main "$@"
