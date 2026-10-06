@@ -1,5 +1,20 @@
-echo "cmd 0"
-sudo nano /etc/wpa_supplicant/wpa_supplicant.conf
-echo "cmd 2" #inline comment
+echo "example command" #You can even save comments!
+#Comments can also have their own line
+history | tail -10 #Users history when sourced
+cd / #cd works when sourced
 
-#line with only comment
+##Docker
+echo "Docker example 1"
+echo "Docker example 2"
+echo "Docker example 3"
+##
+
+pwd #Runs in current directory
+whoami
+
+##New Group
+#comment in group
+echo cmd1
+echo cmd2 #comment
+echo cmd3
+##
