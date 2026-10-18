@@ -535,6 +535,7 @@ runPrompt() #Prompt user for a group to open
         ;;
       p)
         power
+        return 0
         ;;
       s)
         echo -en "${YELLOW}Enter command:${NC} "
