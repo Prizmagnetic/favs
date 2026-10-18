@@ -531,6 +531,7 @@ runPrompt() #Prompt user for a group to open
         ;;
       g)
         gitUpdate
+        return 0
         ;;
       p)
         power
@@ -547,9 +548,11 @@ runPrompt() #Prompt user for a group to open
         ;;
       u)
         updater
+        return 0
         ;;
       h)
         usage
+        return 0
         ;;
     esac
 
